@@ -4,20 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Philatelic Sleuth | India Post Data</title>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
-
 <style>
 body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-ui, sans-serif; }
 .search-focus:focus { border-color: #3b82f6; ring: 2px; ring-color: #1e3a8a; }
 .loader-spin { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.chip { background-color: #1e293b; border: 1px solid #334155; }
 </style>
 </head>
-
 <body class="p-4 md:p-10">
-
 <!-- Loader -->
 <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
     <div class="loader-spin mb-4"></div>
@@ -25,11 +22,9 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
         Streaming All-India Database...
     </p>
 </div>
-
 <div class="max-w-7xl mx-auto">
-
 <!-- Header -->
-<header class="mb-10 flex justify-between items-start border-b border-slate-800 pb-8">
+<header class="mb-10 flex flex-col md:flex-row justify-between items-start border-b border-slate-800 pb-8 gap-4">
     <div>
         <h1 class="text-3xl font-bold text-white tracking-tight">
             Philatelic <span class="text-blue-500 italic">Sleuth</span>
@@ -38,44 +33,44 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
             Social Philately Research Engine
         </p>
     </div>
-
-    <div id="anchor-card" class="hidden items-center gap-4 bg-blue-600/10 border border-blue-500/30 p-3 rounded-2xl">
-        <div>
-            <p class="text-[9px] font-bold text-blue-500 uppercase">Active Anchor</p>
-            <p id="anchor-val" class="text-xs font-bold text-slate-200"></p>
-        </div>
-        <button onclick="resetAnchor()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+    <div id="anchors-container" class="flex flex-wrap gap-2">
+        <!-- Active anchors chips will be inserted here -->
     </div>
 </header>
-
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
-
 <!-- Sidebar -->
 <aside class="lg:col-span-3">
     <div class="bg-slate-800/30 border border-slate-700 p-6 rounded-3xl space-y-6">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-            Global Search (any field)
-        </label>
+        <div>
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                Global Search (any field)
+            </label>
+            <p class="text-[9px] text-slate-600 mt-1">
+                Supports wildcards: <span class="font-bold text-blue-400">?</span> for one character,
+                <span class="font-bold text-blue-400">*</span> for any characters (including none).
+                <br>E.g., BAN*GALORE → Bangalore variants, MA?N → Main/Mann etc.
+            </p>
+        </div>
         <input id="search-q"
                type="text"
-               placeholder="Type anything..."
+               placeholder="Type anything... (use ? and *)"
                onkeyup="if(event.key==='Enter') startResearch()"
                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm search-focus outline-none text-white font-medium">
-
         <button onclick="startResearch()"
                 class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em]">
             Run Research
         </button>
+        <button onclick="clearAllFilters()"
+                class="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-black text-[9px] uppercase tracking-[0.2em]">
+            Clear All Filters
+        </button>
     </div>
-
     <div id="meta-info"
          class="mt-6 text-center font-mono text-[9px] text-slate-600 uppercase tracking-widest"></div>
 </aside>
-
 <!-- Results -->
 <section class="lg:col-span-9">
 <div class="bg-slate-900/30 border border-slate-800 rounded-3xl overflow-hidden">
-
 <div class="overflow-x-auto h-[70vh]">
 <table class="w-full text-left text-xs border-collapse">
 <thead class="bg-slate-800 text-slate-500 uppercase text-[9px] font-black tracking-widest sticky top-0">
@@ -85,7 +80,6 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
     <th class="px-6 py-5 text-center">Pincode</th>
 </tr>
 </thead>
-
 <tbody id="results-table">
 <tr>
     <td colspan="3" class="p-20 text-center text-slate-600 italic">
@@ -95,16 +89,13 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
 </tbody>
 </table>
 </div>
-
 </div>
 </section>
-
 </div>
 </div>
-
 <script>
 let POSTAL_DATA = [];
-let ACTIVE_ANCHOR = null;
+let ACTIVE_ANCHORS = []; // Array of exact uppercase strings
 
 // CSV load
 Papa.parse("data.csv", {
@@ -117,39 +108,97 @@ Papa.parse("data.csv", {
     }
 });
 
-// helper: stringify entire row
-const rowText = row =>
-    Object.values(row).join(" ").toUpperCase();
+// Helper: stringify entire row (uppercase)
+const rowText = row => Object.values(row).join(" ").toUpperCase();
 
-// clickable value wrapper
+// Convert wildcard query to RegExp
+function queryToRegex(q) {
+    if (!q) return null;
+    let pattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex specials
+    pattern = pattern.replace(/\\\*/g, '.*').replace(/\\\?/g, '.');
+    try {
+        return new RegExp(pattern, 'i'); // case-insensitive
+    } catch (e) {
+        return null; // invalid regex
+    }
+}
+
+// Clickable value wrapper
 function tag(val) {
     if (!val) return '';
     const safe = val.toString().replace(/'/g, "\\'");
+    const upper = val.toString().toUpperCase();
     return `<span class="cursor-pointer hover:text-blue-300"
-                  onclick="setAnchor('${safe.toUpperCase()}')">${val}</span>`;
+                  onclick="addAnchor('${safe}', '${upper}')">${val}</span>`;
 }
 
-// research logic
-window.startResearch = () => {
-    const q = document.getElementById('search-q').value.toUpperCase();
-    const t0 = performance.now();
+// Add anchor
+window.addAnchor = (display, upper) => {
+    if (ACTIVE_ANCHORS.includes(upper)) return; // avoid duplicates
+    ACTIVE_ANCHORS.push(upper);
+    renderAnchors();
+    startResearch();
+};
 
+// Remove specific anchor
+window.removeAnchor = index => {
+    ACTIVE_ANCHORS.splice(index, 1);
+    renderAnchors();
+    startResearch();
+};
+
+// Clear all
+window.clearAllFilters = () => {
+    document.getElementById('search-q').value = '';
+    ACTIVE_ANCHORS = [];
+    renderAnchors();
+    startResearch();
+};
+
+// Render anchor chips
+function renderAnchors() {
+    const container = document.getElementById('anchors-container');
+    if (ACTIVE_ANCHORS.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = ACTIVE_ANCHORS.map((a, i) => `
+        <div class="chip px-3 py-2 rounded-full flex items-center gap-2 text-xs font-medium">
+            <span>${a}</span>
+            <button onclick="removeAnchor(${i})" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
+        </div>
+    `).join('');
+}
+
+// Research logic
+window.startResearch = () => {
+    const qInput = document.getElementById('search-q').value.trim().toUpperCase();
+    const regex = queryToRegex(qInput);
+
+    const t0 = performance.now();
     const results = POSTAL_DATA.filter(r => {
         const txt = rowText(r);
-        if (ACTIVE_ANCHOR && !txt.includes(ACTIVE_ANCHOR)) return false;
-        if (q && !txt.includes(q)) return false;
+
+        // Must match all active anchors (exact substring)
+        for (const anchor of ACTIVE_ANCHORS) {
+            if (!txt.includes(anchor)) return false;
+        }
+
+        // If regex, must match it
+        if (regex && !regex.test(txt)) return false;
+
         return true;
     });
 
     render(results.slice(0, 500));
+    const time = (performance.now() - t0).toFixed(1);
     document.getElementById('meta-info').innerText =
-        `${results.length} matches in ${(performance.now() - t0).toFixed(1)} ms`;
+        `${results.length} matches in ${time} ms`;
 };
 
-// renderer
+// Renderer
 function render(rows) {
     const body = document.getElementById('results-table');
-
     if (!rows.length) {
         body.innerHTML =
             `<tr><td colspan="3" class="p-20 text-center text-slate-700 font-bold">
@@ -157,7 +206,6 @@ function render(rows) {
              </td></tr>`;
         return;
     }
-
     body.innerHTML = rows.map(r => `
 <tr class="hover:bg-blue-500/5 transition-colors">
     <td class="px-6 py-4 space-y-1">
@@ -166,34 +214,17 @@ function render(rows) {
             ${tag(r.officetype)} | ${tag(r.statename)}
         </div>
     </td>
-
     <td class="px-6 py-4 text-[10px] text-slate-400 space-y-1">
         <div>${tag(r.circlename)} - ${tag(r.regionname)}</div>
         <div>${tag(r.divisionname)}</div>
         <div>${tag(r.district)}</div>
     </td>
-
     <td class="px-6 py-4 text-center font-mono text-blue-100 font-black">
         ${tag(r.pincode)}
     </td>
 </tr>
 `).join('');
 }
-
-// anchor controls
-window.setAnchor = val => {
-    ACTIVE_ANCHOR = val;
-    document.getElementById('anchor-val').innerText = val;
-    document.getElementById('anchor-card').classList.replace('hidden', 'flex');
-    startResearch();
-};
-
-window.resetAnchor = () => {
-    ACTIVE_ANCHOR = null;
-    document.getElementById('anchor-card').classList.replace('flex', 'hidden');
-    startResearch();
-};
 </script>
-
 </body>
 </html>
