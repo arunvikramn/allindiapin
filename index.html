@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Philatelic Sleuth | India Post Data</title>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-
     <style>
         body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-ui, sans-serif; }
         .search-focus:focus { border-color: #3b82f6; ring: 2px; ring-color: #1e3a8a; }
@@ -15,171 +13,200 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-
 <body class="p-4 md:p-10">
-
-<div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
-    <div class="loader-spin mb-4"></div>
-    <p class="text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] text-center">
-        Streaming All-India Database...
-    </p>
-</div>
-
-<div class="max-w-7xl mx-auto">
-
-<header class="mb-10 flex justify-between items-start border-b border-slate-800 pb-8">
-    <div>
-        <h1 class="text-3xl font-bold text-white tracking-tight">
-            Philatelic <span class="text-blue-500 italic">Sleuth</span>
-        </h1>
-        <p class="text-slate-500 text-[10px] uppercase font-black tracking-[0.3em] mt-1">
-            Social Philately Research Engine
+    <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
+        <div class="loader-spin mb-4"></div>
+        <p id="progress-text" class="text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em] text-center">
+            Streaming All-India Database...<br>
+            <span class="text-blue-500/50">Loading...</span>
         </p>
     </div>
-
-    <div id="anchor-card" class="hidden items-center gap-4 bg-blue-600/10 border border-blue-500/30 p-3 rounded-2xl">
-        <div>
-            <p class="text-[9px] font-bold text-blue-500 uppercase">Active Anchor</p>
-            <p id="anchor-val" class="text-xs font-bold text-slate-200"></p>
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-10 flex flex-col md:flex-row justify-between items-start border-b border-slate-800 pb-8 gap-6">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-tight">Philatelic <span class="text-blue-500 italic">Sleuth</span></h1>
+                <p class="text-slate-500 text-[10px] uppercase font-black tracking-[0.3em] mt-1">Social Philately Research Engine</p>
+            </div>
+           
+            <div id="anchor-card" class="hidden items-center gap-4 bg-blue-600/10 border border-blue-500/30 p-3 rounded-2xl">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
+                <div>
+                    <p class="text-[9px] font-bold text-blue-500 uppercase">Proximity Anchor</p>
+                    <p id="anchor-val" class="text-xs font-bold text-slate-200 uppercase tracking-tighter"></p>
+                </div>
+                <button onclick="resetAnchor()" class="text-slate-500 hover:text-white px-2 text-xl">&times;</button>
+            </div>
+        </header>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <aside class="lg:col-span-3 space-y-6">
+                <div class="bg-slate-800/30 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-6">
+                    <div>
+                        <label class="text-[10px] font-black text-slate-500 uppercase mb-2 block tracking-widest">Search Query</label>
+                        <input type="text" id="search-q" placeholder="e.g. Edappally, 504273, Adilabad, Telangana..." onkeyup="if(event.key==='Enter') startResearch()"
+                               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm search-focus outline-none transition-all text-white font-medium">
+                    </div>
+                    <button onclick="startResearch()" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-blue-900/30 transition-all active:scale-95">
+                        Run Research
+                    </button>
+                </div>
+                <div id="meta-info" class="text-center font-mono text-[9px] text-slate-600 uppercase tracking-widest"></div>
+            </aside>
+            <section class="lg:col-span-9">
+                <div class="bg-slate-900/30 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+                    <div class="overflow-x-auto h-[70vh] custom-scrollbar">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-800 text-slate-500 uppercase text-[9px] font-black tracking-widest sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-6 py-5">Post Office Detail</th>
+                                    <th class="px-6 py-5">Administrative Hierarchy</th>
+                                    <th class="px-6 py-5 text-center">PINCODE</th>
+                                    <th class="px-6 py-5 text-right">Distance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table" class="divide-y divide-slate-800/40">
+                                <tr><td colspan="4" class="p-20 text-center text-slate-600 italic">No search performed. Loaded into local memory.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </div>
-        <button onclick="resetAnchor()" class="text-slate-400 hover:text-white text-xl">&times;</button>
     </div>
-</header>
+    <script>
+        let POSTAL_DATA = [];
+        let ACTIVE_ANCHOR = null;
 
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        // Improved aerial distance (approximate, in km)
+        const calcDist = (lat1, lon1, lat2, lon2) => {
+            const la1 = parseFloat(lat1);
+            const lo1 = parseFloat(lon1);
+            const la2 = parseFloat(lat2);
+            const lo2 = parseFloat(lon2);
+            if (isNaN(la1) || isNaN(lo1) || isNaN(la2) || isNaN(lo2)) return 9999;
+            const dLat = la1 - la2;
+            const dLon = lo1 - lo2;
+            return Math.sqrt(dLat * dLat + dLon * dLon) * 111.32;
+        };
 
-<aside class="lg:col-span-3">
-    <div class="bg-slate-800/30 border border-slate-700 p-6 rounded-3xl space-y-6">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-            Global Search (any field)
-        </label>
-        <input id="search-q"
-               type="text"
-               placeholder="Type anything..."
-               onkeyup="if(event.key==='Enter') startResearch()"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm search-focus outline-none text-white font-medium">
+        // Load CSV
+        Papa.parse("data.csv", {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                POSTAL_DATA = results.data;
+                document.getElementById('loader').classList.add('hidden');
+                console.log("Dataset active: " + POSTAL_DATA.length + " rows.");
+                startResearch(); // initial render
+            }
+        });
 
-        <button onclick="startResearch()"
-                class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em]">
-            Run Research
-        </button>
-    </div>
+        window.startResearch = function() {
+            const query = document.getElementById('search-q').value.trim();
+            const queryUpper = query.toUpperCase();
+            const startTime = performance.now();
+           
+            let filtered = POSTAL_DATA.filter(row => {
+                let isMatch = true;
+                
+                if (query) {
+                    const matchesField = 
+                        row.officename.toUpperCase().includes(queryUpper) ||
+                        (row.pincode && row.pincode.toString().includes(query)) ||
+                        row.district.toUpperCase().includes(queryUpper) ||
+                        row.divisionname.toUpperCase().includes(queryUpper) ||
+                        row.circlename.toUpperCase().includes(queryUpper) ||
+                        row.regionname.toUpperCase().includes(queryUpper) ||
+                        row.statename.toUpperCase().includes(queryUpper) ||
+                        row.officetype.toUpperCase().includes(queryUpper);
+                    
+                    if (!matchesField) isMatch = false;
+                }
+                
+                // Always calculate distance if we have an anchor
+                if (ACTIVE_ANCHOR) {
+                    row._d = calcDist(row.latitude, row.longitude, ACTIVE_ANCHOR.latitude, ACTIVE_ANCHOR.longitude);
+                }
+                
+                return isMatch;
+            });
 
-    <div id="meta-info" class="mt-6 text-center font-mono text-[9px] text-slate-600 uppercase tracking-widest"></div>
-</aside>
+            // If anchor is active → sort by proximity
+            if (ACTIVE_ANCHOR) {
+                filtered.sort((a, b) => a._d - b._d);
+            }
 
-<section class="lg:col-span-9">
-<div class="bg-slate-900/30 border border-slate-800 rounded-3xl overflow-hidden">
+            renderGrid(filtered.slice(0, 500));
+            document.getElementById('meta-info').innerText = `${filtered.length} matches found in ${(performance.now() - startTime).toFixed(1)}ms`;
+        };
 
-<div class="overflow-x-auto h-[70vh]">
-<table class="w-full text-left text-xs border-collapse">
-<thead class="bg-slate-800 text-slate-500 uppercase text-[9px] font-black tracking-widest sticky top-0">
-<tr>
-    <th class="px-6 py-5">Post Office</th>
-    <th class="px-6 py-5">Administration</th>
-    <th class="px-6 py-5 text-center">Pincode</th>
-</tr>
-</thead>
+        function renderGrid(rows) {
+            const body = document.getElementById('results-table');
+            if (!rows.length) {
+                body.innerHTML = '<tr><td colspan="4" class="p-20 text-center text-slate-700 font-bold">NO RESULTS FOUND IN SEARCH</td></tr>';
+                return;
+            }
+            body.innerHTML = rows.map(r => `
+                <tr class="hover:bg-blue-500/5 transition-colors group">
+                    <td class="px-6 py-4">
+                        <div class="font-black text-blue-400 group-hover:text-blue-300 cursor-pointer hover:underline" 
+                             onclick="setAnchor(${JSON.stringify(r).replace(/"/g, '&quot;')})">
+                            ${r.officename}
+                        </div>
+                        <div class="text-[9px] text-slate-500 font-black uppercase tracking-tighter">
+                            <span class="cursor-pointer hover:text-slate-300" 
+                                  onclick="document.getElementById('search-q').value = '${r.officetype}'; startResearch()">
+                                ${r.officetype}
+                            </span> | 
+                            <span class="cursor-pointer hover:text-slate-300" 
+                                  onclick="document.getElementById('search-q').value = '${r.statename}'; startResearch()">
+                                ${r.statename}
+                            </span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-slate-400 text-[10px] font-medium space-y-1">
+                        <div class="text-[8px] opacity-30 uppercase tracking-tighter cursor-pointer hover:text-slate-200"
+                             onclick="document.getElementById('search-q').value = '${r.circlename}'; startResearch()">
+                            ${r.circlename || '-'}
+                        </div>
+                        <div class="text-[9px] opacity-50 uppercase tracking-tighter cursor-pointer hover:text-slate-200"
+                             onclick="document.getElementById('search-q').value = '${r.regionname}'; startResearch()">
+                            ${r.regionname || '-'}
+                        </div>
+                        <div class="uppercase tracking-tight text-slate-300 cursor-pointer hover:text-white"
+                             onclick="document.getElementById('search-q').value = '${r.district}'; startResearch()">
+                            ${r.district}
+                        </div>
+                        <div class="opacity-40 uppercase tracking-tighter cursor-pointer hover:text-white"
+                             onclick="document.getElementById('search-q').value = '${r.divisionname}'; startResearch()">
+                            ${r.divisionname}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-center font-mono text-blue-100 font-black tracking-widest cursor-pointer hover:text-blue-300"
+                        onclick="document.getElementById('search-q').value = '${r.pincode}'; startResearch()">
+                        ${r.pincode}
+                    </td>
+                    <td class="px-6 py-4 text-right font-black ${ (r._d !== undefined && r._d < 9999) ? 'text-emerald-500' : 'text-slate-800'}">
+                        ${(r._d !== undefined && r._d < 9999) ? r._d.toFixed(1) + ' km' : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
 
-<tbody id="results-table">
-<tr>
-    <td colspan="3" class="p-20 text-center text-slate-600 italic">
-        No search performed. Dataset loaded.
-    </td>
-</tr>
-</tbody>
-</table>
-</div>
+        window.setAnchor = (r) => {
+            ACTIVE_ANCHOR = r;
+            document.getElementById('anchor-card').classList.replace('hidden', 'flex');
+            document.getElementById('anchor-val').innerText = r.officename;
+            startResearch();
+        };
 
-</div>
-</section>
-
-</div>
-</div>
-
-<script>
-let POSTAL_DATA = [];
-let ACTIVE_ANCHOR = null;
-
-// load csv
-Papa.parse("data.csv", {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: (res) => {
-        POSTAL_DATA = res.data;
-        document.getElementById('loader').classList.add('hidden');
-    }
-});
-
-// full-text row stringify
-function rowText(row) {
-    return Object.values(row).join(" ").toUpperCase();
-}
-
-window.startResearch = () => {
-    const q = document.getElementById('search-q').value.toUpperCase();
-    const t0 = performance.now();
-
-    let results = POSTAL_DATA.filter(row => {
-        let text = rowText(row);
-
-        if (ACTIVE_ANCHOR && !text.includes(ACTIVE_ANCHOR)) return false;
-        if (q && !text.includes(q)) return false;
-
-        return true;
-    });
-
-    render(results.slice(0, 500));
-    document.getElementById('meta-info').innerText =
-        `${results.length} matches in ${(performance.now() - t0).toFixed(1)} ms`;
-};
-
-function render(rows) {
-    const body = document.getElementById('results-table');
-
-    if (!rows.length) {
-        body.innerHTML =
-            `<tr><td colspan="3" class="p-20 text-center text-slate-700 font-bold">
-             NO RESULTS
-             </td></tr>`;
-        return;
-    }
-
-    body.innerHTML = rows.map(r => `
-<tr class="hover:bg-blue-500/5 cursor-pointer"
-    onclick="setAnchorFromRow(this)">
-    <td class="px-6 py-4">
-        <div class="font-black text-blue-400">${r.officename}</div>
-        <div class="text-[9px] text-slate-500 uppercase">${r.officetype} | ${r.statename}</div>
-    </td>
-    <td class="px-6 py-4 text-[10px] text-slate-400">
-        ${r.circlename} - ${r.regionname}<br>
-        ${r.divisionname}<br>
-        ${r.district}
-    </td>
-    <td class="px-6 py-4 text-center font-mono text-blue-100 font-black">
-        ${r.pincode}
-    </td>
-</tr>
-`).join('');
-}
-
-// anchor by clicked cell text
-window.setAnchorFromRow = (tr) => {
-    const val = tr.innerText.split('\n')[0].toUpperCase();
-    ACTIVE_ANCHOR = val;
-    document.getElementById('anchor-val').innerText = val;
-    document.getElementById('anchor-card').classList.replace('hidden', 'flex');
-    startResearch();
-};
-
-window.resetAnchor = () => {
-    ACTIVE_ANCHOR = null;
-    document.getElementById('anchor-card').classList.replace('flex', 'hidden');
-    startResearch();
-};
-</script>
-
+        window.resetAnchor = () => {
+            ACTIVE_ANCHOR = null;
+            document.getElementById('anchor-card').classList.replace('flex', 'hidden');
+            startResearch();
+        };
+    </script>
 </body>
 </html>
