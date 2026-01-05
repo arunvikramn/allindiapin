@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Philatelic Sleuth | India Post Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-wasm-browser.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+        .anchor-glow { box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); border: 1px solid #3b82f6 !important; }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen flex flex-col">
+
+    <div id="loading" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
+        <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h2 class="text-xl font-light tracking-widest text-blue-400">LOADING POSTAL DATABASE</h2>
+        <p id="status" class="text-slate-500 text-sm mt-2 font-mono">Initializing WASM Engine...</p>
+    </div>
+
+    <header class="border-b border-slate-800 p-4 glass sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight">Philatelic Sleuth</h1>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-widest">All India Pincode Research Tool</p>
+                </div>
+            </div>
+            <div id="anchor-display" class="hidden items-center gap-3 bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-500/50">
+                <span class="text-[10px] font-bold text-blue-400">ANCHOR:</span>
+                <span id="anchor-name" class="text-xs font-semibold"></span>
+                <button onclick="clearAnchor()" class="text-blue-400 hover:text-white">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 flex-grow">
+        <aside class="lg:col-span-3 space-y-6">
+            <div class="bg-slate-800/50 p-5 rounded-2xl border border-slate-700 space-y-4 shadow-xl">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Primary Search</label>
+                    <input type="text" id="search" placeholder="Enter Office Name..." 
+                           class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+                </div>
+
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between text-xs cursor-pointer group">
+                        <span class="text-slate-300 group-hover:text-blue-400 transition">Fuzzy Matching</span>
+                        <input type="checkbox" id="f_fuzzy" class="w-4 h-4 rounded border-slate-700 bg-slate-900 checked:bg-blue-600 focus:ring-0">
+                    </label>
+                    <input type="range" id="f_fuzzy_val" min="30" max="100" value="85" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    
+                    <div class="grid grid-cols-2 gap-2 pt-2">
+                        <label class="flex items-center gap-2 p-2 rounded bg-slate-900/50 border border-slate-700 cursor-pointer text-[10px] hover:border-blue-500 transition">
+                            <input type="checkbox" id="f_district"> DISTRICT
+                        </label>
+                        <label class="flex items-center gap-2 p-2 rounded bg-slate-900/50 border border-slate-700 cursor-pointer text-[10px] hover:border-blue-500 transition">
+                            <input type="checkbox" id="f_division"> DIVISION
+                        </label>
+                        <label class="flex items-center gap-2 p-2 rounded bg-slate-900/50 border border-slate-700 cursor-pointer text-[10px] hover:border-blue-500 transition">
+                            <input type="checkbox" id="f_region"> REGION
+                        </label>
+                        <label class="flex items-center gap-2 p-2 rounded bg-slate-900/50 border border-slate-700 cursor-pointer text-[10px] hover:border-blue-500 transition">
+                            <input type="checkbox" id="f_pincode"> PINCODE
+                        </label>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Proximity Radius (KM)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="f_nearby" class="rounded border-slate-700">
+                            <select id="f_radius" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none">
+                                <option value="5">5 km</option><option value="15">15 km</option>
+                                <option value="50">50 km</option><option value="100">100 km</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Office Type Filter</label>
+                        <select id="f_type" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none">
+                            <option value="ALL">ALL (HO, SO, BO)</option>
+                            <option value="HO">Head Office (HO)</option>
+                            <option value="SO">Sub Office (SO)</option>
+                            <option value="BO">Branch Office (BO)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button id="btnSearch" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm tracking-wide shadow-lg shadow-blue-900/20 active:scale-95 transition duration-200">
+                    FIND RECORDS
+                </button>
+            </div>
+            <p id="stats" class="text-center text-[10px] text-slate-500 font-mono"></p>
+        </aside>
+
+        <section class="lg:col-span-9 bg-slate-800/30 rounded-2xl border border-slate-800 overflow-hidden flex flex-col shadow-2xl">
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-slate-800/80 text-slate-400 text-[10px] uppercase tracking-widest sticky top-0">
+                        <tr>
+                            <th class="p-4">Office Details</th>
+                            <th class="p-4">Location Context</th>
+                            <th class="p-4 text-center">PIN</th>
+                            <th class="p-4 text-center">Type</th>
+                            <th class="p-4 text-right">Distance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results" class="divide-y divide-slate-800/50">
+                        </tbody>
+                </table>
+            </div>
+            <div id="no-results" class="flex-grow flex flex-col items-center justify-center p-20 text-slate-600">
+                <svg class="w-12 h-12 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <p>Ready for your research query...</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let db, conn, anchorPoint = null;
+
+        async function init() {
+            const status = document.getElementById('status');
+            try {
+                const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+                const worker = new Worker(URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], {type: 'text/javascript'})));
+                db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+                await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+                
+                status.innerText = "Sourcing data.csv...";
+                await db.registerFileURL('data.csv', './data.csv', duckdb.DuckDBDataProtocol.HTTP, false);
+                conn = await db.connect();
+                
+                status.innerText = "Indexing All India Records...";
+                await conn.query(`
+                    CREATE TABLE pos AS SELECT * FROM read_csv_auto('data.csv', ignore_errors=true);
+                    -- Sanitize Lat/Long for calculations
+                    UPDATE pos SET latitude = NULL WHERE CAST(latitude AS VARCHAR) = 'NA';
+                    UPDATE pos SET longitude = NULL WHERE CAST(longitude AS VARCHAR) = 'NA';
+                    ALTER TABLE pos ALTER latitude TYPE DOUBLE;
+                    ALTER TABLE pos ALTER longitude TYPE DOUBLE;
+                `);
+
+                document.getElementById('loading').classList.add('opacity-0');
+                setTimeout(() => document.getElementById('loading').remove(), 500);
+            } catch (e) {
+                status.innerHTML = `<span class="text-red-500 underline">Critical Error: ${e.message}</span>`;
+                console.error(e);
+            }
+        }
+
+        async function runSearch() {
+            const term = document.getElementById('search').value.trim().toUpperCase();
+            const isFuzzy = document.getElementById('f_fuzzy').checked;
+            const threshold = document.getElementById('f_fuzzy_val').value;
+            const type = document.getElementById('f_type').value;
+
+            let query = `SELECT *, 0 as dist FROM pos WHERE 1=1 `;
+            
+            if (term) {
+                if (isFuzzy) {
+                    query += ` AND (100 - (levenshtein(UPPER(officename), '${term}') / length(UPPER(officename)) * 100)) >= ${threshold}`;
+                } else {
+                    query += ` AND UPPER(officename) LIKE '%${term}%'`;
+                }
+            }
+
+            if (type !== 'ALL') query += ` AND officetype = '${type}'`;
+
+            if (anchorPoint) {
+                if (document.getElementById('f_district').checked) query += ` AND district = '${anchorPoint.district}'`;
+                if (document.getElementById('f_region').checked) query += ` AND regionname = '${anchorPoint.regionname}'`;
+                if (document.getElementById('f_division').checked) query += ` AND divisionname = '${anchorPoint.divisionname}'`;
+                if (document.getElementById('f_pincode').checked) query += ` AND pincode = ${anchorPoint.pincode}`;
+                
+                if (document.getElementById('f_nearby').checked && anchorPoint.latitude) {
+                    const r = document.getElementById('f_radius').value;
+                    query = `SELECT *, sqrt(pow(latitude - ${anchorPoint.latitude}, 2) + pow(longitude - ${anchorPoint.longitude}, 2)) * 111 as dist 
+                             FROM (${query}) WHERE dist <= ${r}`;
+                }
+            }
+
+            query += ` ORDER BY dist ASC LIMIT 1000`;
+            
+            const start = performance.now();
+            const result = await conn.query(query);
+            const data = result.toArray();
+            render(data);
+            document.getElementById('stats').innerText = `Scanned 155k rows. Showing ${data.length} matches in ${(performance.now()-start).toFixed(2)}ms`;
+        }
+
+        function render(rows) {
+            const tbody = document.getElementById('results');
+            const empty = document.getElementById('no-results');
+            
+            if (rows.length === 0) {
+                tbody.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            
+            empty.classList.add('hidden');
+            tbody.innerHTML = rows.map(row => `
+                <tr class="group hover:bg-slate-700/50 cursor-pointer transition" onclick='setAnchor(${JSON.stringify(row)})'>
+                    <td class="p-4">
+                        <div class="font-bold text-blue-400 group-hover:text-blue-300">${row.officename}</div>
+                        <div class="text-[10px] text-slate-500 uppercase tracking-tighter">${row.statename} | ${row.district}</div>
+                    </td>
+                    <td class="p-4 text-xs text-slate-400">
+                        <div>Div: ${row.divisionname}</div>
+                        <div class="opacity-50 text-[9px]">${row.regionname}</div>
+                    </td>
+                    <td class="p-4 text-center font-mono text-sm text-slate-300">${row.pincode}</td>
+                    <td class="p-4 text-center">
+                        <span class="px-2 py-0.5 rounded-full bg-slate-700 text-[9px] font-bold text-slate-400">${row.officetype}</span>
+                    </td>
+                    <td class="p-4 text-right font-bold ${row.dist > 0 ? 'text-emerald-400' : 'text-slate-600'}">
+                        ${row.dist > 0 ? row.dist.toFixed(1) + ' km' : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        window.setAnchor = (row) => {
+            anchorPoint = row;
+            document.getElementById('anchor-display').classList.remove('hidden');
+            document.getElementById('anchor-display').classList.add('flex');
+            document.getElementById('anchor-name').innerText = row.officename;
+            runSearch();
+        };
+
+        window.clearAnchor = () => {
+            anchorPoint = null;
+            document.getElementById('anchor-display').classList.add('hidden');
+            runSearch();
+        };
+
+        document.getElementById('btnSearch').addEventListener('click', runSearch);
+        init();
+    </script>
+</body>
+</html>
