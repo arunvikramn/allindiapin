@@ -7,156 +7,116 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-ui, sans-serif; }
-.search-focus:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px #1e3a8a; }
-.loader-spin { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.chip { background-color: #1e293b; border: 1px solid #334155; }
+    body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-ui, sans-serif; }
+    .search-focus:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px #1e3a8a; }
+    .loader-spin { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    /* Scrollbar Styling */
+    * { scrollbar-width: thin; scrollbar-color: #334155 #1e293b; }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-track { background: #1e293b; border-radius: 10px; }
+    *::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; border: 1px solid #1e293b; }
+    *::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-/* Custom Dark Thin Scrollbar Styling */
-* {
-    scrollbar-width: thin; /* Firefox: thin scrollbar */
-    scrollbar-color: #334155 #1e293b; /* Firefox: thumb slate-700, track slate-900 */
-}
-
-*::-webkit-scrollbar {
-    width: 6px; /* Thin width */
-    height: 6px; /* For horizontal if needed */
-}
-
-*::-webkit-scrollbar-track {
-    background: #1e293b; /* slate-900 dark track */
-    border-radius: 10px;
-}
-
-*::-webkit-scrollbar-thumb {
-    background: #334155; /* slate-700 thumb */
-    border-radius: 10px;
-    border: 1px solid #1e293b; /* subtle border for polish */
-}
-
-*::-webkit-scrollbar-thumb:hover {
-    background: #475569; /* slate-600 on hover */
-}
-
-/* Ensure table container scrollbar inherits */
-.overflow-x-auto {
-    scrollbar-width: thin;
-    scrollbar-color: #334155 #1e293b;
-}
-
-.overflow-x-auto::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-track {
-    background: #1e293b;
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 10px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb:hover {
-    background: #475569;
-}
+    /* Sort Arrows */
+    .sort-icon::after { content: '↕'; margin-left: 5px; opacity: 0.3; font-size: 0.8em; }
+    .sort-asc::after { content: '▲'; opacity: 1; color: #60a5fa; }
+    .sort-desc::after { content: '▼'; opacity: 1; color: #60a5fa; }
+    
+    th { cursor: pointer; user-select: none; white-space: nowrap; }
+    th:hover { color: #fff; background-color: #1e293b; }
+    td { white-space: nowrap; }
 </style>
 </head>
-<body class="p-4 md:p-10">
+<body class="p-4 md:p-6 h-screen flex flex-col overflow-hidden">
 
-<!-- Loader -->
 <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
     <div class="loader-spin mb-4"></div>
-    <p class="text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em]">
-        Streaming All-India Database...
-    </p>
+    <p class="text-[10px] font-mono text-slate-500 uppercase tracking-[0.2em]">Loading Database...</p>
 </div>
 
-<div class="max-w-7xl mx-auto">
-
-<!-- Header -->
-<header class="mb-10 flex flex-col md:flex-row justify-between items-start border-b border-slate-800 pb-8 gap-4">
-    <div>
-        <h1 class="text-3xl font-bold text-white tracking-tight">
+<header class="flex flex-col xl:flex-row justify-between items-center bg-slate-800/50 border border-slate-700 p-4 rounded-2xl mb-4 gap-4 shrink-0 backdrop-blur-md">
+    
+    <div class="flex flex-col justify-center">
+        <h1 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
             Philatelic <span class="text-blue-500 italic">Sleuth</span>
         </h1>
-        <p class="text-slate-500 text-[10px] uppercase font-black tracking-[0.3em] mt-1">
-            Social Philately Research Engine
-        </p>
+        <div id="meta-info" class="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">
+            Ready to search
+        </div>
     </div>
-    <div id="anchors-container" class="flex flex-wrap gap-2">
-        <!-- Active anchor chips will appear here -->
+
+    <div class="flex w-full xl:w-auto gap-2 items-center">
+        <div class="relative w-full xl:w-[400px] group">
+            <input id="search-q" type="text" 
+                   placeholder="Search... (Use * or ?)" 
+                   class="w-full bg-slate-900 border border-slate-600 rounded-xl pl-4 pr-10 py-3 text-sm search-focus outline-none text-white font-medium transition-all"
+                   onkeyup="if(event.key==='Enter') startResearch()">
+            
+            <button onclick="clearSearch()" 
+                    id="clear-btn"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <button onclick="startResearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-blue-900/20">
+            Search
+        </button>
     </div>
 </header>
 
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
-
-<!-- Sidebar -->
-<aside class="lg:col-span-3">
-    <div class="bg-slate-800/30 border border-slate-700 p-6 rounded-3xl space-y-6">
-        <div>
-            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                Global Search (any field)
-            </label>
-            <p class="text-[9px] text-slate-600 mt-1 leading-relaxed">
-                Supports wildcards: <span class="font-bold text-blue-400">?</span> = one character,
-                <span class="font-bold text-blue-400">*</span> = any characters (incl. none).<br>
-                Examples: <code class="bg-slate-700 px-1 rounded">BAN*GALORE</code>,
-                <code class="bg-slate-700 px-1 rounded">MA?N</code>,
-                <code class="bg-slate-700 px-1 rounded">*ROAD*</code>,
-                <code class="bg-slate-700 px-1 rounded">400?</code>
-            </p>
-        </div>
-        <input id="search-q"
-               type="text"
-               placeholder="Type anything... (use ? and *)"
-               onkeyup="if(event.key==='Enter') startResearch()"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm search-focus outline-none text-white font-medium">
-        <button onclick="startResearch()"
-                class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em]">
-            Run Research
-        </button>
-        <button onclick="clearAllFilters()"
-                class="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-black text-[9px] uppercase tracking-[0.2em]">
-            Clear All Filters
-        </button>
+<section class="flex-1 bg-slate-900/30 border border-slate-800 rounded-2xl overflow-hidden flex flex-col relative">
+    <div class="overflow-auto flex-1 h-full w-full">
+        <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-800 text-slate-400 uppercase text-[9px] font-black tracking-widest sticky top-0 z-10 shadow-md">
+                <tr id="table-headers">
+                    </tr>
+            </thead>
+            <tbody id="results-table" class="divide-y divide-slate-800/50">
+                <tr>
+                    <td colspan="100%" class="p-20 text-center text-slate-600 italic">
+                        Dataset loading...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
-    <div id="meta-info"
-         class="mt-6 text-center font-mono text-[9px] text-slate-600 uppercase tracking-widest"></div>
-</aside>
-
-<!-- Results -->
-<section class="lg:col-span-9">
-<div class="bg-slate-900/30 border border-slate-800 rounded-3xl overflow-hidden">
-<div class="overflow-x-auto h-[70vh]">
-<table class="w-full text-left text-xs border-collapse">
-<thead class="bg-slate-800 text-slate-500 uppercase text-[9px] font-black tracking-widest sticky top-0">
-<tr>
-    <th class="px-6 py-5">Post Office</th>
-    <th class="px-6 py-5">Administration</th>
-    <th class="px-6 py-5 text-center">Pincode</th>
-</tr>
-</thead>
-<tbody id="results-table">
-<tr>
-    <td colspan="3" class="p-20 text-center text-slate-600 italic">
-        Dataset loaded. No search yet.
-    </td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
 </section>
-
-</div>
-</div>
 
 <script>
 let POSTAL_DATA = [];
-let ACTIVE_ANCHORS = []; // Array of exact uppercase strings for AND filtering
+let FILTERED_DATA = []; // To store current search results for sorting
+let SORT_STATE = { key: null, direction: 'asc' }; // 'asc' or 'desc'
+
+// Define the columns we want to display and their keys in the CSV
+const COLUMNS = [
+    { label: "Office Name", key: "officename" },
+    { label: "Pincode", key: "pincode" },
+    { label: "Type", key: "officetype" },
+    { label: "Status", key: "deliverystatus" },
+    { label: "Division", key: "divisionname" },
+    { label: "Region", key: "regionname" },
+    { label: "Circle", key: "circlename" },
+    { label: "Taluk", key: "taluk" },
+    { label: "District", key: "districtname" },
+    { label: "State", key: "statename" }
+];
+
+// Initialize Headers
+function initHeaders() {
+    const headerRow = document.getElementById('table-headers');
+    headerRow.innerHTML = COLUMNS.map(col => 
+        `<th class="px-4 py-4 sort-icon transition-colors border-b border-slate-700" 
+             onclick="handleSort('${col.key}')" 
+             id="header-${col.key}">
+             ${col.label}
+         </th>`
+    ).join('');
+}
 
 // CSV load
 Papa.parse("data.csv", {
@@ -165,130 +125,159 @@ Papa.parse("data.csv", {
     skipEmptyLines: true,
     complete: res => {
         POSTAL_DATA = res.data;
+        // Normalize keys to lowercase just in case
+        POSTAL_DATA = POSTAL_DATA.map(row => {
+            const newRow = {};
+            Object.keys(row).forEach(k => newRow[k.toLowerCase()] = row[k]);
+            return newRow;
+        });
+        
+        FILTERED_DATA = [...POSTAL_DATA]; // Initially all data
         document.getElementById('loader').classList.add('hidden');
+        render(FILTERED_DATA.slice(0, 200)); // Initial render
+        document.getElementById('meta-info').innerText = `Database Loaded: ${POSTAL_DATA.length} Records`;
     }
 });
 
-// Helper: stringify row for searching — EXCLUDES latitude & longitude
-const rowText = row => {
-    const { latitude, longitude, ...rest } = row || {};
-    return Object.values(rest).join(" ").toUpperCase();
+initHeaders();
+
+// Search Input Logic
+const searchInput = document.getElementById('search-q');
+const clearBtn = document.getElementById('clear-btn');
+
+searchInput.addEventListener('input', (e) => {
+    clearBtn.classList.toggle('hidden', e.target.value === '');
+});
+
+window.clearSearch = () => {
+    searchInput.value = '';
+    clearBtn.classList.add('hidden');
+    searchInput.focus();
+    startResearch();
 };
 
-// Convert wildcard query to RegExp
+// Wildcard Regex Helper
 function queryToRegex(q) {
     if (!q) return null;
-    let pattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex specials
+    let pattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
     pattern = pattern.replace(/\\\*/g, '.*').replace(/\\\?/g, '.');
-    try {
-        return new RegExp(pattern, 'i'); // case-insensitive
-    } catch (e) {
-        return null;
-    }
+    return new RegExp(pattern, 'i');
 }
 
-// Clickable value wrapper (for adding anchors)
-function tag(val) {
-    if (!val) return '';
-    const display = val.toString().trim();
-    const safe = display.replace(/'/g, "\\'");
-    const upper = display.toUpperCase();
-    return `<span class="cursor-pointer hover:text-blue-300"
-                  onclick="addAnchor('${safe}', '${upper}')">${display}</span>`;
-}
-
-// Add anchor
-window.addAnchor = (display, upper) => {
-    if (ACTIVE_ANCHORS.includes(upper)) return; // no duplicates
-    ACTIVE_ANCHORS.push(upper);
-    renderAnchors();
-    startResearch();
-};
-
-// Remove specific anchor
-window.removeAnchor = index => {
-    ACTIVE_ANCHORS.splice(index, 1);
-    renderAnchors();
-    startResearch();
-};
-
-// Clear everything
-window.clearAllFilters = () => {
-    document.getElementById('search-q').value = '';
-    ACTIVE_ANCHORS = [];
-    renderAnchors();
-    startResearch();
-};
-
-// Render anchor chips
-function renderAnchors() {
-    const container = document.getElementById('anchors-container');
-    if (ACTIVE_ANCHORS.length === 0) {
-        container.innerHTML = '';
-        return;
-    }
-    container.innerHTML = ACTIVE_ANCHORS.map((a, i) => `
-        <div class="chip px-3 py-2 rounded-full flex items-center gap-2 text-xs font-medium text-slate-200">
-            <span>${a}</span>
-            <button onclick="removeAnchor(${i})" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
-        </div>
-    `).join('');
-}
-
-// Main research logic
+// Main Search Logic
 window.startResearch = () => {
-    const qInput = document.getElementById('search-q').value.trim().toUpperCase();
+    const qInput = searchInput.value.trim().toUpperCase();
     const regex = queryToRegex(qInput);
-
+    
     const t0 = performance.now();
-    const results = POSTAL_DATA.filter(r => {
-        const txt = rowText(r);
 
-        // Must contain ALL active anchors (exact substring match)
-        for (const anchor of ACTIVE_ANCHORS) {
-            if (!txt.includes(anchor)) return false;
+    if (!qInput) {
+        FILTERED_DATA = [...POSTAL_DATA];
+    } else {
+        FILTERED_DATA = POSTAL_DATA.filter(r => {
+            // Join all values for global search
+            const txt = Object.values(r).join(" ").toUpperCase();
+            return regex ? regex.test(txt) : true;
+        });
+    }
+
+    // Apply current sort if exists
+    if(SORT_STATE.key) {
+        applySort();
+    }
+
+    const time = (performance.now() - t0).toFixed(1);
+    document.getElementById('meta-info').innerText = `${FILTERED_DATA.length} matches in ${time} ms`;
+    
+    render(FILTERED_DATA.slice(0, 500)); // Cap render at 500 for DOM performance
+};
+
+// Sorting Logic
+window.handleSort = (key) => {
+    // Toggle direction or set new key
+    if (SORT_STATE.key === key) {
+        SORT_STATE.direction = SORT_STATE.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        SORT_STATE.key = key;
+        SORT_STATE.direction = 'asc';
+    }
+    
+    updateHeaderStyles();
+    applySort();
+    render(FILTERED_DATA.slice(0, 500));
+};
+
+function applySort() {
+    const { key, direction } = SORT_STATE;
+    const modifier = direction === 'asc' ? 1 : -1;
+
+    FILTERED_DATA.sort((a, b) => {
+        let valA = a[key] ? a[key].toString().toLowerCase() : '';
+        let valB = b[key] ? b[key].toString().toLowerCase() : '';
+
+        // Check if numeric (like pincode)
+        if (!isNaN(valA) && !isNaN(valB) && valA !== '' && valB !== '') {
+            return (Number(valA) - Number(valB)) * modifier;
         }
 
-        // If there's a wildcard query, must match the regex
-        if (regex && !regex.test(txt)) return false;
+        if (valA < valB) return -1 * modifier;
+        if (valA > valB) return 1 * modifier;
+        return 0;
+    });
+}
 
-        return true;
+function updateHeaderStyles() {
+    // Reset all headers
+    document.querySelectorAll('th').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc', 'text-blue-400');
+        th.classList.add('text-slate-400');
     });
 
-    render(results.slice(0, 500)); // limit display to 500 rows for performance
-    const time = (performance.now() - t0).toFixed(1);
-    document.getElementById('meta-info').innerText =
-        `${results.length} matches in ${time} ms`;
-};
+    // Highlight active header
+    const activeHeader = document.getElementById(`header-${SORT_STATE.key}`);
+    if (activeHeader) {
+        activeHeader.classList.remove('text-slate-400');
+        activeHeader.classList.add('text-blue-400', `sort-${SORT_STATE.direction}`);
+    }
+}
 
-// Render table rows
+// Highlight Match Function
+function highlight(text) {
+    // Optional: simple logic to highlight matches could go here, 
+    // but adds rendering overhead. Keeping it simple for speed.
+    return text || '-';
+}
+
+// Render Table
 function render(rows) {
     const body = document.getElementById('results-table');
+    
     if (!rows.length) {
         body.innerHTML = `
-            <tr><td colspan="3" class="p-20 text-center text-slate-700 font-bold uppercase">
-             NO RESULTS
+            <tr><td colspan="100%" class="p-20 text-center text-slate-700 font-bold uppercase tracking-widest">
+             No Results Found
              </td></tr>`;
         return;
     }
+
     body.innerHTML = rows.map(r => `
-<tr class="hover:bg-blue-500/5 transition-colors">
-    <td class="px-6 py-4 space-y-1">
-        <div class="font-black text-blue-400">${tag(r.officename)}</div>
-        <div class="text-[9px] text-slate-500 uppercase">
-            ${tag(r.officetype)} | ${tag(r.statename)}
-        </div>
-    </td>
-    <td class="px-6 py-4 text-[10px] text-slate-400 space-y-1">
-        <div>${tag(r.circlename)} - ${tag(r.regionname)}</div>
-        <div>${tag(r.divisionname)}</div>
-        <div>${tag(r.district)}</div>
-    </td>
-    <td class="px-6 py-4 text-center font-mono text-blue-100 font-black">
-        ${tag(r.pincode)}
-    </td>
-</tr>
-`).join('');
+        <tr class="hover:bg-blue-500/10 transition-colors group">
+            ${COLUMNS.map((col, idx) => {
+                const val = r[col.key] || '';
+                // Style specific columns differently
+                let cellClass = "px-4 py-3 text-slate-400 border-b border-slate-800";
+                let content = val;
+
+                if (col.key === 'officename') {
+                    cellClass += " font-bold text-blue-300 group-hover:text-blue-200";
+                } else if (col.key === 'pincode') {
+                    cellClass += " font-mono text-slate-300";
+                }
+
+                return `<td class="${cellClass}">${content}</td>`;
+            }).join('')}
+        </tr>
+    `).join('');
 }
 </script>
 
