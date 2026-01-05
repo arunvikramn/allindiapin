@@ -12,6 +12,56 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
 .loader-spin { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .chip { background-color: #1e293b; border: 1px solid #334155; }
+
+/* Custom Dark Thin Scrollbar Styling */
+* {
+    scrollbar-width: thin; /* Firefox: thin scrollbar */
+    scrollbar-color: #334155 #1e293b; /* Firefox: thumb slate-700, track slate-900 */
+}
+
+*::-webkit-scrollbar {
+    width: 6px; /* Thin width */
+    height: 6px; /* For horizontal if needed */
+}
+
+*::-webkit-scrollbar-track {
+    background: #1e293b; /* slate-900 dark track */
+    border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: #334155; /* slate-700 thumb */
+    border-radius: 10px;
+    border: 1px solid #1e293b; /* subtle border for polish */
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: #475569; /* slate-600 on hover */
+}
+
+/* Ensure table container scrollbar inherits */
+.overflow-x-auto {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #1e293b;
+}
+
+.overflow-x-auto::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
 </style>
 </head>
 <body class="p-4 md:p-10">
