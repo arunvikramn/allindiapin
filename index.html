@@ -32,7 +32,7 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
 .sort-arrow.desc::after { content: "↓"; opacity: 1; color: #60a5fa; }
 </style>
 </head>
-<body class="p-4 md:p-10">
+<body class="p-4 md:p-8">
 
 <!-- Loader -->
 <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
@@ -44,46 +44,36 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
 
 <div class="max-w-7xl mx-auto">
 
-<!-- Header with Search Bar -->
-<header class="mb-10 border-b border-slate-800 pb-8">
+<!-- Header -->
+<header class="mb-6">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
             <h1 class="text-3xl font-bold text-white tracking-tight">
                 Philatelic <span class="text-blue-500 italic">Sleuth</span>
             </h1>
-            <p class="text-slate-500 text-[10px] uppercase font-black tracking-[0.3em] mt-1">
-                Social Philately Research Engine
+            <p id="stats-line" class="text-slate-400 text-sm font-medium mt-1">
+                Loading database...
             </p>
         </div>
 
         <!-- Search Bar -->
-        <div class="flex items-center gap-3 w-full md:w-auto">
-            <div class="relative flex-1 md:flex-initial">
-                <input id="search-q"
-                       type="text"
-                       placeholder="Search anything... (use ? and *)"
-                       onkeyup="if(event.key==='Enter') startResearch()"
-                       class="w-full md:w-96 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 pr-10 text-sm search-focus outline-none text-white font-medium">
-                <button id="clear-search" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-lg hidden">&times;</button>
-            </div>
-            <button onclick="startResearch()"
-                    class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.2em]">
-                Search
-            </button>
-            <button onclick="clearAllFilters()"
-                    class="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-xl font-black text-[9px] uppercase tracking-[0.2em]">
-                Clear All
-            </button>
+        <div class="relative w-full md:w-96">
+            <input id="search-q"
+                   type="text"
+                   placeholder="Search anything... (use ? and *)"
+                   onkeyup="if(event.key==='Enter') startResearch()"
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 pr-10 text-sm search-focus outline-none text-white font-medium">
+            <button id="clear-search" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-lg hidden">&times;</button>
         </div>
     </div>
 
-    <!-- Active Anchors -->
+    <!-- Active Anchors with counts -->
     <div id="anchors-container" class="flex flex-wrap gap-2 mt-6"></div>
 </header>
 
-<!-- Results Table -->
-<div class="bg-slate-900/30 border border-slate-800 rounded-3xl overflow-hidden">
-    <div class="overflow-x-auto h-[78vh]">
+<!-- Results Table - Full height, no wasted space -->
+<div class="bg-slate-900/30 border border-slate-800 rounded-3xl overflow-hidden h-[calc(100vh-180px)]">
+    <div class="overflow-x-auto h-full">
         <table class="w-full text-left text-xs border-collapse">
             <thead class="bg-slate-800 text-slate-500 uppercase text-[9px] font-black tracking-widest sticky top-0 z-10">
                 <tr>
@@ -109,14 +99,13 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
     </div>
 </div>
 
-<div id="meta-info" class="mt-6 text-center font-mono text-[9px] text-slate-600 uppercase tracking-widest"></div>
-
 </div>
 
 <script>
 let POSTAL_DATA = [];
-let ACTIVE_ANCHORS = []; // Multiple exact substring anchors (AND logic)
+let ACTIVE_ANCHORS = [];
 let currentSort = { key: null, direction: 'asc' };
+let totalRecords = 0;
 
 const VALID_FIELDS = ['circlename', 'regionname', 'divisionname', 'officename', 'pincode', 'officetype', 'delivery', 'district', 'statename'];
 
@@ -127,12 +116,14 @@ Papa.parse("data.csv", {
     skipEmptyLines: true,
     complete: res => {
         POSTAL_DATA = res.data;
+        totalRecords = POSTAL_DATA.length;
         document.getElementById('loader').classList.add('hidden');
+        updateStats(totalRecords);
         startResearch();
     }
 });
 
-// Only include allowed fields in search text
+// Searchable text from valid fields only
 const rowText = row => {
     if (!row) return '';
     let parts = [];
@@ -142,7 +133,7 @@ const rowText = row => {
     return parts.join(" ").toUpperCase();
 };
 
-// Wildcard → RegExp
+// Wildcard to RegExp
 function queryToRegex(q) {
     if (!q) return null;
     let pattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -150,7 +141,7 @@ function queryToRegex(q) {
     try { return new RegExp(pattern, 'i'); } catch (e) { return null; }
 }
 
-// Clickable tag — only for valid fields
+// Clickable tag
 function tag(field, val) {
     if (!val || !VALID_FIELDS.includes(field)) return val || '';
     const display = val.toString().trim();
@@ -160,7 +151,7 @@ function tag(field, val) {
                   onclick="addAnchor('${safe}', '${upper}')">${display}</span>`;
 }
 
-// Anchor controls
+// Anchor management
 window.addAnchor = (display, upper) => {
     if (ACTIVE_ANCHORS.includes(upper)) return;
     ACTIVE_ANCHORS.push(upper);
@@ -174,26 +165,61 @@ window.removeAnchor = index => {
     startResearch();
 };
 
-window.clearAllFilters = () => {
-    document.getElementById('search-q').value = '';
-    document.getElementById('clear-search').classList.add('hidden');
-    ACTIVE_ANCHORS = [];
-    renderAnchors();
-    startResearch();
-};
-
 function renderAnchors() {
     const container = document.getElementById('anchors-container');
     if (ACTIVE_ANCHORS.length === 0) {
         container.innerHTML = '';
         return;
     }
-    container.innerHTML = ACTIVE_ANCHORS.map((a, i) => `
-        <div class="chip px-3 py-2 rounded-full flex items-center gap-2 text-xs font-medium text-slate-200">
-            <span>${a}</span>
-            <button onclick="removeAnchor(${i})" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
+
+    // Compute current matches with this anchor removed (to show filtered-out count)
+    const currentMatches = getCurrentResults().length;
+
+    container.innerHTML = ACTIVE_ANCHORS.map((anchor, i) => {
+        // Temporarily remove this anchor to count how many would match without it
+        const withoutThis = POSTAL_DATA.filter(r => {
+            const txt = rowText(r);
+            for (let j = 0; j < ACTIVE_ANCHORS.length; j++) {
+                if (j === i) continue;
+                if (!txt.includes(ACTIVE_ANCHORS[j])) return false;
+            }
+            return true;
+        }).length;
+
+        const filteredOut = withoutThis - currentMatches;
+        return `
+        <div class="chip px-4 py-2 rounded-full flex items-center gap-3 text-xs font-medium text-slate-200">
+            <span>${anchor}</span>
+            <span class="text-slate-500">(-${filteredOut})</span>
+            <button onclick="removeAnchor(${i})" class="text-slate-400 hover:text-white text-lg leading-none ml-2">&times;</button>
         </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+// Update stats line
+function updateStats(matches) {
+    const statsEl = document.getElementById('stats-line');
+    if (totalRecords === 0) {
+        statsEl.innerText = 'Loading database...';
+    } else {
+        statsEl.innerText = `${matches.toLocaleString()} records from ${totalRecords.toLocaleString()} total`;
+    }
+}
+
+// Get current filtered results (used for anchor counts)
+function getCurrentResults() {
+    const qInput = document.getElementById('search-q').value.trim().toUpperCase();
+    const regex = queryToRegex(qInput);
+
+    return POSTAL_DATA.filter(r => {
+        const txt = rowText(r);
+        for (const anchor of ACTIVE_ANCHORS) {
+            if (!txt.includes(anchor)) return false;
+        }
+        if (regex && !regex.test(txt)) return false;
+        return true;
+    });
 }
 
 // Sorting
@@ -210,7 +236,7 @@ window.sortTable = key => {
     startResearch();
 };
 
-// Clear button inside search
+// Clear button in search
 document.getElementById('search-q').addEventListener('input', function() {
     const clearBtn = document.getElementById('clear-search');
     if (this.value) clearBtn.classList.remove('hidden');
@@ -219,6 +245,8 @@ document.getElementById('search-q').addEventListener('input', function() {
 document.getElementById('clear-search').addEventListener('click', () => {
     document.getElementById('search-q').value = '';
     document.getElementById('clear-search').classList.add('hidden');
+    ACTIVE_ANCHORS = [];
+    renderAnchors();
     startResearch();
 });
 
@@ -230,19 +258,14 @@ window.startResearch = () => {
     const t0 = performance.now();
     let results = POSTAL_DATA.filter(r => {
         const txt = rowText(r);
-
-        // All anchors must be present
         for (const anchor of ACTIVE_ANCHORS) {
             if (!txt.includes(anchor)) return false;
         }
-
-        // Wildcard search
         if (regex && !regex.test(txt)) return false;
-
         return true;
     });
 
-    // Apply sorting
+    // Sorting
     if (currentSort.key) {
         results.sort((a, b) => {
             let A = (a[currentSort.key] || '').toString().toUpperCase();
@@ -257,13 +280,14 @@ window.startResearch = () => {
         });
     }
 
-    render(results.slice(0, 1000));
+    render(results.slice(0, 2000)); // generous limit
+    updateStats(results.length);
+    renderAnchors(); // update filtered-out counts
     const time = (performance.now() - t0).toFixed(1);
-    document.getElementById('meta-info').innerText =
-        `${results.length} matches in ${time} ms`;
+    // Optional: could show time somewhere, but removed meta-info to save space
 };
 
-// Render single-line rows
+// Render rows
 function render(rows) {
     const body = document.getElementById('results-table');
     if (!rows.length) {
