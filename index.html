@@ -3,210 +3,192 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Philatelic Sleuth | India Post Data</title>
+    <title>Philatelic Sleuth | All India Post</title>
     <script src="https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-wasm-browser.js" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
-        .glass { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(8px); }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        body { background-color: #0f172a; color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; }
+        .search-card { background: rgba(30, 41, 59, 0.5); border: 1px solid #334155; }
+        .custom-loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body>
+<body class="p-4 md:p-8">
 
-    <div id="loading" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a] transition-opacity duration-500">
-        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-        <h2 class="text-sm font-bold tracking-[0.3em] text-blue-400 uppercase">Sleuth Engine Warming Up</h2>
-        <p id="status" class="text-slate-500 text-[10px] mt-4 font-mono text-center max-w-xs leading-relaxed italic">Initializing Data Workers...</p>
+    <div id="loading-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
+        <div class="custom-loader mb-4"></div>
+        <div id="status" class="text-xs font-mono text-blue-400 animate-pulse uppercase tracking-widest">Waking Engine...</div>
     </div>
 
-    <header class="border-b border-slate-800 p-4 glass sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="bg-blue-600 p-1.5 rounded shadow-lg">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-white tracking-tight">Philatelic Sleuth</h1>
+                <p class="text-slate-500 text-xs font-medium uppercase tracking-widest">Postal History Research Portal</p>
+            </div>
+            <div id="anchor-ui" class="hidden items-center gap-3 bg-blue-500/10 border border-blue-500/40 px-4 py-2 rounded-xl">
+                <span class="text-[10px] font-black text-blue-500 uppercase">Anchor Point:</span>
+                <span id="anchor-label" class="text-sm font-semibold text-blue-100 italic"></span>
+                <button onclick="clearAnchor()" class="text-slate-400 hover:text-white transition text-xl">&times;</button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <aside class="lg:col-span-3 space-y-6">
+                <div class="search-card p-6 rounded-2xl shadow-xl space-y-6">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Post Office Name</label>
+                        <input type="text" id="search-input" placeholder="Search..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none transition">
+                    </div>
+
+                    <div class="space-y-4">
+                        <label class="flex items-center justify-between text-xs font-semibold text-slate-300">
+                            <span>Fuzzy Similarity</span>
+                            <input type="checkbox" id="fuzzy-toggle" class="rounded bg-slate-800">
+                        </label>
+                        <div class="pt-4 border-t border-slate-800 space-y-3 text-[10px] font-bold">
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="check-district" class="rounded border-slate-700"> SAME DISTRICT
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="check-division" class="rounded border-slate-700"> SAME DIVISION
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="check-nearby" class="rounded border-slate-700"> WITHIN RADIUS
+                            </label>
+                            <select id="radius-val" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-400 mt-1">
+                                <option value="5">5 km</option>
+                                <option value="25">25 km</option>
+                                <option value="100">100 km</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button onclick="executeSearch()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-900/30">
+                        Query Database
+                    </button>
                 </div>
-                <h1 class="font-bold text-sm text-white">Philatelic Sleuth <span class="text-blue-500 ml-2 text-[10px] opacity-50 underline">GitHub Edition</span></h1>
-            </div>
-            <div id="anchor-display" class="hidden items-center gap-2 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/30">
-                <span class="text-[9px] font-bold text-blue-400 uppercase tracking-tighter">Anchor:</span>
-                <span id="anchor-name" class="text-[11px] font-semibold text-blue-100 italic"></span>
-                <button onclick="window.clearAnchor()" class="text-slate-500 hover:text-white ml-2">✕</button>
-            </div>
+                <div id="stat-log" class="text-center font-mono text-[9px] text-slate-600 uppercase"></div>
+            </aside>
+
+            <section class="lg:col-span-9">
+                <div class="bg-slate-800/20 border border-slate-800 rounded-2xl overflow-hidden min-h-[600px]">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-800/50 text-slate-500 uppercase text-[9px] font-black tracking-widest">
+                                <tr>
+                                    <th class="px-6 py-4">PO Detail</th>
+                                    <th class="px-6 py-4">Hierarchy</th>
+                                    <th class="px-6 py-4 text-center">PIN</th>
+                                    <th class="px-6 py-4 text-right">Distance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="data-body" class="divide-y divide-slate-800/40">
+                                <tr><td colspan="4" class="p-20 text-center text-slate-600 italic">Ready for input...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </div>
-    </header>
-
-    <main class="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
-        <aside class="lg:col-span-3 space-y-4">
-            <div class="bg-slate-800/40 border border-slate-700 p-5 rounded-xl space-y-5">
-                <div>
-                    <label class="text-[10px] font-black text-slate-500 uppercase mb-2 block">Name Search</label>
-                    <input type="text" id="search" placeholder="e.g. Kothimir" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition">
-                </div>
-
-                <div class="space-y-2">
-                    <label class="flex items-center justify-between text-[11px] text-slate-400">
-                        <span>Fuzzy Tolerance</span>
-                        <input type="checkbox" id="f_fuzzy" class="rounded bg-slate-900 border-slate-700">
-                    </label>
-                    <input type="range" id="f_fuzzy_val" min="50" max="100" value="80" class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer">
-                </div>
-
-                <div class="grid grid-cols-2 gap-2 text-[9px] font-bold">
-                    <label class="flex items-center gap-2 p-2 rounded bg-slate-900 border border-slate-700 cursor-pointer hover:border-blue-500">
-                        <input type="checkbox" id="f_district"> DISTRICT
-                    </label>
-                    <label class="flex items-center gap-2 p-2 rounded bg-slate-900 border border-slate-700 cursor-pointer hover:border-blue-500">
-                        <input type="checkbox" id="f_division"> DIVISION
-                    </label>
-                </div>
-
-                <div class="border-t border-slate-700 pt-4">
-                    <label class="flex items-center gap-2 text-[11px] text-slate-400 mb-2">
-                        <input type="checkbox" id="f_nearby"> Show Nearby POs
-                    </label>
-                    <select id="f_radius" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300">
-                        <option value="5">Within 5 km</option>
-                        <option value="25">Within 25 km</option>
-                        <option value="100">Within 100 km</option>
-                    </select>
-                </div>
-
-                <button id="btnSearch" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold text-xs uppercase tracking-widest transition shadow-lg shadow-blue-900/20">Analyze Records</button>
-            </div>
-            <div id="stats" class="text-[9px] text-slate-600 font-mono text-center tracking-tight"></div>
-        </aside>
-
-        <section class="lg:col-span-9 bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-            <div class="overflow-x-auto custom-scrollbar h-[70vh]">
-                <table class="w-full text-left text-xs whitespace-nowrap border-collapse">
-                    <thead class="bg-slate-800/90 text-slate-500 uppercase tracking-tighter sticky top-0 z-10">
-                        <tr>
-                            <th class="px-4 py-4 border-b border-slate-700">Name / Beat Context</th>
-                            <th class="px-4 py-4 border-b border-slate-700">Location</th>
-                            <th class="px-4 py-4 border-b border-slate-700 text-center">PIN</th>
-                            <th class="px-4 py-4 border-b border-slate-700 text-right">Distance</th>
-                        </tr>
-                    </thead>
-                    <tbody id="results" class="divide-y divide-slate-800/50">
-                        <tr><td colspan="4" class="p-20 text-center text-slate-600 italic">Enter a PO name to begin your sleuthing...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </main>
+    </div>
 
     <script>
-        // Using window.duckdb because we are using the UMD script tag
-        let db, conn, anchorPoint = null;
+        let db, conn, anchor = null;
 
         async function init() {
-            const statusLabel = document.getElementById('status');
+            const status = document.getElementById('status');
             try {
-                if (typeof duckdb === 'undefined') throw new Error("DuckDB library blocked by browser.");
-
-                const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-                const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
-                
-                statusLabel.innerText = "Spawning Web Workers...";
-                const worker_url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], {type: 'text/javascript'}));
-                const worker = new Worker(worker_url);
-                
-                db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+                // Compatibility selection
+                const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+                db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), new Worker(bundle.mainWorker));
                 await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
                 
-                statusLabel.innerText = "Indexing 22MB Dataset...";
+                status.innerText = "Sourcing 22MB CSV...";
                 await db.registerFileURL('data.csv', './data.csv', duckdb.DuckDBDataProtocol.HTTP, false);
                 
                 conn = await db.connect();
+                status.innerText = "Indexing 1.5L Records...";
                 await conn.query(`
                     CREATE TABLE pos AS SELECT * FROM read_csv_auto('data.csv', ignore_errors=true);
                     UPDATE pos SET latitude = NULL WHERE CAST(latitude AS VARCHAR) = 'NA';
                     UPDATE pos SET longitude = NULL WHERE CAST(longitude AS VARCHAR) = 'NA';
                 `);
 
-                document.getElementById('loading').style.opacity = '0';
-                setTimeout(() => document.getElementById('loading').remove(), 500);
-            } catch (err) {
-                statusLabel.innerHTML = `<span class="text-red-500 font-bold uppercase">System Blocked</span><br><span class="text-[10px] text-slate-400 underline">${err.message}</span><br><br>Try using Chrome or Firefox.`;
-                console.error("Critical Engine Failure:", err);
+                document.getElementById('loading-overlay').classList.add('hidden');
+            } catch (e) {
+                status.innerHTML = `<span class="text-red-500">Security Block: ${e.message}</span>`;
+                console.error(e);
             }
         }
 
-        window.runSearch = async function() {
-            const term = document.getElementById('search').value.trim().toUpperCase();
-            const fuzzy = document.getElementById('f_fuzzy').checked;
-            const threshold = document.getElementById('f_fuzzy_val').value;
+        window.executeSearch = async function() {
+            const input = document.getElementById('search-input').value.toUpperCase();
+            const fuzzy = document.getElementById('fuzzy-toggle').checked;
             
-            let query = `SELECT *, 0 as dist FROM pos WHERE 1=1 `;
-            
-            if (term) {
+            let sql = `SELECT *, 0 as dist FROM pos WHERE 1=1 `;
+            if (input) {
                 if (fuzzy) {
-                    query += ` AND (100 - (levenshtein(UPPER(officename), '${term}') / length(UPPER(officename)) * 100)) >= ${threshold}`;
+                    sql += ` AND (100 - (levenshtein(UPPER(officename), '${input}') / length(UPPER(officename)) * 100)) >= 80`;
                 } else {
-                    query += ` AND UPPER(officename) LIKE '%${term}%'`;
+                    sql += ` AND UPPER(officename) LIKE '%${input}%'`;
                 }
             }
 
-            if (anchorPoint) {
-                if (document.getElementById('f_district').checked) query += ` AND district = '${anchorPoint.district}'`;
-                if (document.getElementById('f_division').checked) query += ` AND divisionname = '${anchorPoint.divisionname}'`;
-                
-                if (document.getElementById('f_nearby').checked && anchorPoint.latitude) {
-                    const r = document.getElementById('f_radius').value;
-                    query = `SELECT *, sqrt(pow(latitude - ${anchorPoint.latitude}, 2) + pow(longitude - ${anchorPoint.longitude}, 2)) * 111 as dist 
-                             FROM (${query}) WHERE dist <= ${r}`;
+            if (anchor) {
+                if (document.getElementById('check-district').checked) sql += ` AND district = '${anchor.district}'`;
+                if (document.getElementById('check-division').checked) sql += ` AND divisionname = '${anchor.divisionname}'`;
+                if (document.getElementById('check-nearby').checked && anchor.latitude) {
+                    const r = document.getElementById('radius-val').value;
+                    sql = `SELECT *, sqrt(pow(latitude - ${anchor.latitude}, 2) + pow(longitude - ${anchor.longitude}, 2)) * 111 as dist FROM (${sql}) WHERE dist <= ${r}`;
                 }
             }
 
-            query += ` ORDER BY dist ASC LIMIT 1000`;
-            const start = performance.now();
-            const results = await conn.query(query);
+            sql += ` ORDER BY dist ASC LIMIT 500`;
+            const results = await conn.query(sql);
             render(results.toArray());
-            document.getElementById('stats').innerText = `${results.numRows} POs found in ${(performance.now()-start).toFixed(2)}ms`;
+            document.getElementById('stat-log').innerText = `${results.numRows} results found`;
         }
 
         function render(rows) {
-            const tbody = document.getElementById('results');
-            if(rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-slate-500 italic">No matching records found.</td></tr>';
+            const body = document.getElementById('data-body');
+            if (rows.length === 0) {
+                body.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-slate-600">No matches.</td></tr>';
                 return;
             }
-            tbody.innerHTML = rows.map(row => `
-                <tr class="hover:bg-blue-500/5 cursor-pointer transition group" onclick="window.setAnchor(${JSON.stringify(row).replace(/'/g, "&apos;")})">
-                    <td class="px-4 py-3 border-b border-slate-800/50">
-                        <div class="font-bold text-blue-400 group-hover:text-blue-300 transition-colors">${row.officename}</div>
-                        <div class="text-[9px] text-slate-500 uppercase font-semibold tracking-tighter">${row.officetype} • ${row.statename}</div>
+            body.innerHTML = rows.map(r => `
+                <tr class="hover:bg-blue-500/5 cursor-pointer transition group" onclick="setAnchor(${JSON.stringify(r).replace(/'/g, "&apos;")})">
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-blue-400 group-hover:text-blue-300">${r.officename}</div>
+                        <div class="text-[9px] text-slate-500 font-bold uppercase">${r.officetype} • ${r.statename}</div>
                     </td>
-                    <td class="px-4 py-3 border-b border-slate-800/50 text-slate-400">
-                        <div class="text-[10px] uppercase">${row.district}</div>
-                        <div class="text-[9px] opacity-40">${row.divisionname}</div>
+                    <td class="px-6 py-4 text-slate-400 text-[10px]">
+                        <div class="uppercase">${r.district}</div>
+                        <div class="opacity-50">${r.divisionname}</div>
                     </td>
-                    <td class="px-4 py-3 border-b border-slate-800/50 text-center font-mono text-slate-300 text-[11px]">${row.pincode}</td>
-                    <td class="px-4 py-3 border-b border-slate-800/50 text-right font-bold ${row.dist > 0 ? 'text-emerald-500' : 'text-slate-700'}">
-                        ${row.dist > 0 ? row.dist.toFixed(1) + ' km' : '-'}
+                    <td class="px-6 py-4 text-center font-mono text-slate-300">${r.pincode}</td>
+                    <td class="px-6 py-4 text-right font-black ${r.dist > 0 ? 'text-emerald-500' : 'text-slate-800'}">
+                        ${r.dist > 0 ? r.dist.toFixed(1) + 'km' : '-'}
                     </td>
                 </tr>
             `).join('');
         }
 
-        window.setAnchor = (row) => {
-            anchorPoint = row;
-            document.getElementById('anchor-display').classList.replace('hidden', 'flex');
-            document.getElementById('anchor-name').innerText = row.officename;
-            window.runSearch();
+        window.setAnchor = (r) => {
+            anchor = r;
+            document.getElementById('anchor-ui').classList.remove('hidden');
+            document.getElementById('anchor-ui').classList.add('flex');
+            document.getElementById('anchor-label').innerText = r.officename;
+            executeSearch();
         };
 
         window.clearAnchor = () => {
-            anchorPoint = null;
-            document.getElementById('anchor-display').classList.replace('flex', 'hidden');
-            window.runSearch();
+            anchor = null;
+            document.getElementById('anchor-ui').classList.add('hidden');
+            executeSearch();
         };
 
-        document.getElementById('btnSearch').addEventListener('click', window.runSearch);
-        window.addEventListener('load', init);
+        init();
     </script>
 </body>
 </html>
