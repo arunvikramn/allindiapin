@@ -8,13 +8,14 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-ui, sans-serif; }
-.search-focus:focus { border-color: #3b82f6; ring: 2px; ring-color: #1e3a8a; }
+.search-focus:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px #1e3a8a; }
 .loader-spin { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .chip { background-color: #1e293b; border: 1px solid #334155; }
 </style>
 </head>
 <body class="p-4 md:p-10">
+
 <!-- Loader -->
 <div id="loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f172a]">
     <div class="loader-spin mb-4"></div>
@@ -22,7 +23,9 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
         Streaming All-India Database...
     </p>
 </div>
+
 <div class="max-w-7xl mx-auto">
+
 <!-- Header -->
 <header class="mb-10 flex flex-col md:flex-row justify-between items-start border-b border-slate-800 pb-8 gap-4">
     <div>
@@ -34,10 +37,12 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
         </p>
     </div>
     <div id="anchors-container" class="flex flex-wrap gap-2">
-        <!-- Active anchors chips will be inserted here -->
+        <!-- Active anchor chips will appear here -->
     </div>
 </header>
+
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+
 <!-- Sidebar -->
 <aside class="lg:col-span-3">
     <div class="bg-slate-800/30 border border-slate-700 p-6 rounded-3xl space-y-6">
@@ -45,10 +50,13 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
             <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                 Global Search (any field)
             </label>
-            <p class="text-[9px] text-slate-600 mt-1">
-                Supports wildcards: <span class="font-bold text-blue-400">?</span> for one character,
-                <span class="font-bold text-blue-400">*</span> for any characters (including none).
-                <br>E.g., BAN*GALORE → Bangalore variants, MA?N → Main/Mann etc.
+            <p class="text-[9px] text-slate-600 mt-1 leading-relaxed">
+                Supports wildcards: <span class="font-bold text-blue-400">?</span> = one character,
+                <span class="font-bold text-blue-400">*</span> = any characters (incl. none).<br>
+                Examples: <code class="bg-slate-700 px-1 rounded">BAN*GALORE</code>,
+                <code class="bg-slate-700 px-1 rounded">MA?N</code>,
+                <code class="bg-slate-700 px-1 rounded">*ROAD*</code>,
+                <code class="bg-slate-700 px-1 rounded">400?</code>
             </p>
         </div>
         <input id="search-q"
@@ -68,6 +76,7 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
     <div id="meta-info"
          class="mt-6 text-center font-mono text-[9px] text-slate-600 uppercase tracking-widest"></div>
 </aside>
+
 <!-- Results -->
 <section class="lg:col-span-9">
 <div class="bg-slate-900/30 border border-slate-800 rounded-3xl overflow-hidden">
@@ -91,11 +100,13 @@ body { background-color: #0f172a; color: #f1f5f9; font-family: 'Inter', system-u
 </div>
 </div>
 </section>
+
 </div>
 </div>
+
 <script>
 let POSTAL_DATA = [];
-let ACTIVE_ANCHORS = []; // Array of exact uppercase strings
+let ACTIVE_ANCHORS = []; // Array of exact uppercase strings for AND filtering
 
 // CSV load
 Papa.parse("data.csv", {
@@ -108,8 +119,11 @@ Papa.parse("data.csv", {
     }
 });
 
-// Helper: stringify entire row (uppercase)
-const rowText = row => Object.values(row).join(" ").toUpperCase();
+// Helper: stringify row for searching — EXCLUDES latitude & longitude
+const rowText = row => {
+    const { latitude, longitude, ...rest } = row || {};
+    return Object.values(rest).join(" ").toUpperCase();
+};
 
 // Convert wildcard query to RegExp
 function queryToRegex(q) {
@@ -119,22 +133,23 @@ function queryToRegex(q) {
     try {
         return new RegExp(pattern, 'i'); // case-insensitive
     } catch (e) {
-        return null; // invalid regex
+        return null;
     }
 }
 
-// Clickable value wrapper
+// Clickable value wrapper (for adding anchors)
 function tag(val) {
     if (!val) return '';
-    const safe = val.toString().replace(/'/g, "\\'");
-    const upper = val.toString().toUpperCase();
+    const display = val.toString().trim();
+    const safe = display.replace(/'/g, "\\'");
+    const upper = display.toUpperCase();
     return `<span class="cursor-pointer hover:text-blue-300"
-                  onclick="addAnchor('${safe}', '${upper}')">${val}</span>`;
+                  onclick="addAnchor('${safe}', '${upper}')">${display}</span>`;
 }
 
 // Add anchor
 window.addAnchor = (display, upper) => {
-    if (ACTIVE_ANCHORS.includes(upper)) return; // avoid duplicates
+    if (ACTIVE_ANCHORS.includes(upper)) return; // no duplicates
     ACTIVE_ANCHORS.push(upper);
     renderAnchors();
     startResearch();
@@ -147,7 +162,7 @@ window.removeAnchor = index => {
     startResearch();
 };
 
-// Clear all
+// Clear everything
 window.clearAllFilters = () => {
     document.getElementById('search-q').value = '';
     ACTIVE_ANCHORS = [];
@@ -163,14 +178,14 @@ function renderAnchors() {
         return;
     }
     container.innerHTML = ACTIVE_ANCHORS.map((a, i) => `
-        <div class="chip px-3 py-2 rounded-full flex items-center gap-2 text-xs font-medium">
+        <div class="chip px-3 py-2 rounded-full flex items-center gap-2 text-xs font-medium text-slate-200">
             <span>${a}</span>
             <button onclick="removeAnchor(${i})" class="text-slate-400 hover:text-white text-lg leading-none">&times;</button>
         </div>
     `).join('');
 }
 
-// Research logic
+// Main research logic
 window.startResearch = () => {
     const qInput = document.getElementById('search-q').value.trim().toUpperCase();
     const regex = queryToRegex(qInput);
@@ -179,29 +194,29 @@ window.startResearch = () => {
     const results = POSTAL_DATA.filter(r => {
         const txt = rowText(r);
 
-        // Must match all active anchors (exact substring)
+        // Must contain ALL active anchors (exact substring match)
         for (const anchor of ACTIVE_ANCHORS) {
             if (!txt.includes(anchor)) return false;
         }
 
-        // If regex, must match it
+        // If there's a wildcard query, must match the regex
         if (regex && !regex.test(txt)) return false;
 
         return true;
     });
 
-    render(results.slice(0, 500));
+    render(results.slice(0, 500)); // limit display to 500 rows for performance
     const time = (performance.now() - t0).toFixed(1);
     document.getElementById('meta-info').innerText =
         `${results.length} matches in ${time} ms`;
 };
 
-// Renderer
+// Render table rows
 function render(rows) {
     const body = document.getElementById('results-table');
     if (!rows.length) {
-        body.innerHTML =
-            `<tr><td colspan="3" class="p-20 text-center text-slate-700 font-bold">
+        body.innerHTML = `
+            <tr><td colspan="3" class="p-20 text-center text-slate-700 font-bold uppercase">
              NO RESULTS
              </td></tr>`;
         return;
@@ -226,5 +241,6 @@ function render(rows) {
 `).join('');
 }
 </script>
+
 </body>
 </html>
